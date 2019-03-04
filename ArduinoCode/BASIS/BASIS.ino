@@ -997,15 +997,25 @@ String extendDigits(long value, int numberDigits) {
   return result;
 }
 
-void handleSENSOR1Values(String mes) { //LLLL,TT.TT,VV.VV,TT.TT,DDDD.DDDD,P.PP,B.BB
-  lightOut = mes.substring(0,4).toInt();
-  float tempOut1 = mes.substring(5,10).toFloat();
-  humOut = mes.substring(11,16).toFloat();
-  float tempOut2 = mes.substring(17,22).toFloat();
+void handleSENSOR1Values(String mes) { //LLLL#TT.TT#VV.VV#TT.TT#DDDD.DDDD#P.PP#B.BB
+  String parts[7];
+  int startI = 0;
+  int partI = 0;
+  for (int i = 0; i < mes.length(); i++) {
+    if (mes.charAt(i) == '#') {
+      parts[partI] = mes.substring(startI,i);
+      partI ++;
+      startI = i+1;
+    }
+  }
+  lightOut = parts[0].toInt();
+  float tempOut1 = parts[1].toFloat();
+  humOut = parts[2].toFloat();
+  float tempOut2 = parts[3].toFloat();
   tempOut = (tempOut1 + tempOut2) / 2;
-  pressure = mes.substring(23,32).toFloat();
-  panelVoltage = mes.substring(33,37).toFloat();
-  battVoltage = mes.substring(38,42).toFloat();
+  pressure = parts[4].toFloat();
+  panelVoltage = parts[5].toFloat();
+  battVoltage = parts[6].toFloat();
   String data = String(lightOut) + "," + String(humOut) + "," + String(tempOut) + "," + String(pressure) + "," + String(panelVoltage) + "," + String(battVoltage);
   writeToSD("SENSOR1", data);
   handleLastUpdate(1);
