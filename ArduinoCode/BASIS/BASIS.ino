@@ -920,7 +920,7 @@ void handleForecastAdjustment(String mes) {
   Serial1.println(answer);
 }
 
-int dayCounter = 7;
+int dayCounter;
 #define bufferSize 1000
 
 void handleLiveDataRequest(String mes) { //B03 tempBuit#tempSer#tempBin#moistBuit#moistSer#moistBin#Press#LightBuit#LightBin#PV#BV
@@ -1175,6 +1175,12 @@ void handleDayIndex(void) {
   else {
     dayCounter ++;
   }
+  SD.remove("DayCounter.txt");
+  File dataFile = SD.open("DayCounter.txt", FILE_WRITE);
+  if (dataFile) {
+    dataFile.println(String(dayCounter));
+    dataFile.close();
+  }
   SD.remove("BASIS" + String(dayCounter) + ".txt");
   SD.remove("SENSOR1" + String(dayCounter) + ".txt");
   SD.remove("SENSOR2" + String(dayCounter) + ".txt");
@@ -1234,6 +1240,17 @@ void setup() {
   tft.setTextSize(2);
   tft.print(mess);
   //Touchscreen
+  
+  //Initialize dayCounter
+  char readBuffer[2];
+  if (SD.exists("DayCounter.txt")) {
+    File file = SD.open("DayCounter.txt", FILE_READ);
+    file.read(readBuffer, 2);
+    dayCounter = ((int) readBuffer[0] - 48)*10 + (int) readBuffer[1] - 48;
+  }
+  else {
+    dayCounter = 0;
+  }
 }
 
 
