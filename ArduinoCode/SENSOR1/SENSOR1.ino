@@ -123,40 +123,22 @@ void loop()
 //    Serial.println(" PP" + String(s.length()) + " " + s);
 
     
-    String sendMes = "100 ";
+    String sendMes = "100 ";    //100 light#temp1#hum#temp2#press#PV#BV
     String s = String(analogRead(LightPin));
-    if (s.length() < 2) {
-      sendMes = sendMes + "0";
-    }
-    if (s.length() < 3) {
-      sendMes = sendMes + "0";
-    }
-    if (s.length() < 4) {
-      sendMes = sendMes + "0";
-    }
-    sendMes = sendMes + s + ",";
+    sendMes = sendMes + s + "#";
     float t = dht.readTemperature();
-    s = String(t).substring(0,4);
-    if (t < 10) {
-      s =  "0" + s;
-    }
-    else {
-      s = s + "0";
-    }
-    sendMes = sendMes + s + ",";
-    s = String(dht.readHumidity()).substring(0,4);
-    sendMes = sendMes + s + "0,";
+    s = String(t);
+    sendMes = sendMes + s + "#";
+    s = String(dht.readHumidity());
+    sendMes = sendMes + s + "#";
     t = bme.readTemperature();
     s = String(t);
-    if (t < 10) {
-      s = "0" + s;
-    }
-    sendMes = sendMes + s + ",";
-    s = String(bme.readPressure()).substring(0,9);
-    sendMes = sendMes + s.substring(0,4) + "." + s.substring(4,6) + s.substring(7,9) + ",";
-    s = String(analogRead(PanelPos)/1024.0*5).substring(0,4);
-    sendMes = sendMes + s + ",";
-    s = String(analogRead(BattPos)/1024.0*5).substring(0,4);
+    sendMes = sendMes + s + "#";
+    s = String(bme.readPressure()/100);
+    sendMes = sendMes + s + "#";
+    s = String(analogRead(PanelPos)/1024.0*5);
+    sendMes = sendMes + s + "#";
+    s = String(analogRead(BattPos)/1024.0*5);
     sendMes = sendMes + s;
     Serial.println(sendMes);
 
