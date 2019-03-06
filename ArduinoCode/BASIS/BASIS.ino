@@ -817,6 +817,10 @@ int getMaxDay(int month) {
 //            Request for live data
 //            mes: P03
 //            answer: B03 tempBuit#tempSer#tempBin#moistBuit#moistSer#moistBin#Press#LightBuit#PV#BV
+//        type2: 4
+//            Adjust dayCounter
+//            mes: P04 dayCounter(2)
+//            answer: B04 OK
 //Device: 1 (SENSOR1)
 //    type1: 0
 //        type2: 0
@@ -869,6 +873,9 @@ void handleMess(String mes) {
             case '3':
               handleLiveDataRequest(mes);
               break;
+            case '4':
+              handleSetDayCounter(mes);
+              break;
           }
           break;
       }
@@ -918,6 +925,12 @@ void handleForecastAdjustment(String mes) {
   }
   String answer = "B02 OK";
   Serial1.println(answer);
+}
+
+void handleSetDayCounter(String mes) {
+  dayCounter = mes.substring(0,2).toInt();
+  String answer = "B04 OK";
+  Serial1.print(answer);
 }
 
 int dayCounter;
