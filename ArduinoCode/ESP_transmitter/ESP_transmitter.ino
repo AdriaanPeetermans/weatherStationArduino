@@ -2,7 +2,7 @@
 
 const char* ssid     = "WiFi-P2";      // SSID
 const char* password = "Minoutje0987";      // Password
-const char* host = "192.168.1.61";  // IP serveur - Server IP
+const char* host = "192.168.1.15";  // IP serveur - Server IP
 const int   port = 9876;            // Port serveur - Server Port
 
 void setup() {
@@ -32,12 +32,12 @@ void setup() {
       Serial.println("Connection Failed");
       return;
   }
-  client.print(mess);
+  client.print(mess + "\r\n");
 
   // Wait for answer.
   unsigned long timeout = millis();
   while (client.available() == 0) {
-    if (millis() - timeout > 5000) {
+    if (millis() - timeout > 10000) {
       Serial.println("Client Timeout");
       client.stop();
       return;
