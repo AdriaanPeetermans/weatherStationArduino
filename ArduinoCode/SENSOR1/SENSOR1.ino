@@ -30,6 +30,12 @@ DHT dht(DHTPIN, DHTTYPE);
 
 volatile int f_wdt=1;
 
+int numberTries = 0;
+int maxNumberTries = 5;
+
+//Debuging:
+//String debugText = "";
+
 ISR(WDT_vect)
 {
   if(f_wdt == 0)
@@ -83,9 +89,23 @@ void setup()
   WDTCSR |= _BV(WDIE);
 }
   
-void loop()
-{
+void loop() {
   if(f_wdt == 1) {
+    if (numberTries >= maxNumberTries) {
+      int sleepCycles = 100;
+      digitalWrite(VCCPin, LOW);
+      delay(100);
+      /* Enter sleep*/
+      for (int i = 0; i < sleepCycles; i++) {
+        f_wdt = 0;
+        enterSleep();
+      }
+      numberTries = 0;
+      return;
+    }
+    else {
+      numberTries ++;
+    }
     digitalWrite(VCCPin, HIGH); // Power sensors.
     digitalWrite(ESPReset, LOW); // Reset ESP.
     delay(500);
@@ -101,70 +121,33 @@ void loop()
       }
       mess = Serial.readStringUntil('\r');
     }
-
-    // Send data.
-//    String s = String(analogRead(LightPin));
-//    Serial.print("SENSOR1 LI" + String(s.length()) + " " + s);
-//    s = String(dht.readTemperature());
-//    Serial.print(" T1" + String(s.length()) + " " + s);
-//    s = String(dht.readHumidity());
-//    Serial.print(" HU" + String(s.length()) + " " + s);
-//    s = String(bme.readTemperature());
-//    Serial.print(" T2" + String(s.length()) + " " + s);
-//    s = String(bme.readPressure());
-//    Serial.print(" PR" + String(s.length()) + " " + s);
-//    s = String(analogRead(BattNeg));
-//    Serial.print(" BN" + String(s.length()) + " " + s);
-//    s = String(analogRead(BattPos));
-//    Serial.print(" BP" + String(s.length()) + " " + s);
-//    s = String(analogRead(PanelNeg));
-//    Serial.print(" PN" + String(s.length()) + " " + s);
-//    s = String(analogRead(PanelPos));
-//    Serial.println(" PP" + String(s.length()) + " " + s);
-
     
-    String sendMes = "100 ";
+    String sendMes = "100 ";    //100 light#temp1#hum#temp2#press#PV#BV
     String s = String(analogRead(LightPin));
-    if (s.length() < 2) {
-      sendMes = sendMes + "0";
-    }
-    if (s.length() < 3) {
-      sendMes = sendMes + "0";
-    }
-    if (s.length() < 4) {
-      sendMes = sendMes + "0";
-    }
-    sendMes = sendMes + s + ",";
+    sendMes = sendMes + s + "#";
     float t = dht.readTemperature();
-    s = String(t).substring(0,4);
-    if (t < 10) {
-      s =  "0" + s;
-    }
-    else {
-      s = s + "0";
-    }
-    sendMes = sendMes + s + ",";
-    s = String(dht.readHumidity()).substring(0,4);
-    sendMes = sendMes + s + "0,";
+    s = String(t);
+    sendMes = sendMes + s + "#";
+    s = String(dht.readHumidity());
+    sendMes = sendMes + s + "#";
     t = bme.readTemperature();
     s = String(t);
-    if (t < 10) {
-      s = "0" + s;
-    }
-    sendMes = sendMes + s + ",";
-    s = String(bme.readPressure()).substring(0,9);
-    sendMes = sendMes + s.substring(0,4) + "." + s.substring(4,6) + s.substring(7,9) + ",";
-    s = String(analogRead(PanelPos)/1024.0*5).substring(0,4);
-    sendMes = sendMes + s + ",";
-    s = String(analogRead(BattPos)/1024.0*5).substring(0,4);
+    sendMes = sendMes + s + "#";
+    s = String(bme.readPressure()/100);
+    sendMes = sendMes + s + "#";
+    s = String(analogRead(PanelPos)/1024.0*5);
+    sendMes = sendMes + s + "#";
+    s = String(analogRead(BattPos)/1024.0*5);
     sendMes = sendMes + s;
+    //sendMes = sendMes + "#" + debugText;
     Serial.println(sendMes);
 
     // Wait for answer.
     mess = "";
     timeout = millis();
     while (mess.length() <= 1) {
-      if (millis() - timeout > 10000) {
+      if (millis() - timeout > 20000) {
+        //debugText = "Timout, tries: " + String(numberTries);
         return;
       }
       mess = Serial.readStringUntil('\r');
@@ -173,39 +156,17 @@ void loop()
 
     // Rerun if failed.
     if (mess.indexOf("B00") < 0) {
+      //debugText = "Wrong answer: " + mess + ", tries: " + String(numberTries);
       return;
     }
 
+    numberTries = 0;
+    
     //Parse sleep length:
     mess = mess.substring(4);
     int minutes = mess.toInt();
     int sleepCycles = int(minutes*60/8.0);
-    
-//    Serial.print("----   Light    ----------------\n");
-//    Serial.print("Measurement = ");
-//    Serial.println(analogRead(LightPin));
-//    Serial.print("--------------------------------\n\n");
-//    
-//    Serial.print("----   DHT 22   ----------------\n");
-//    Serial.print("Temperature = ");
-//    Serial.print(dht.readTemperature());
-//    Serial.println(" *C");
-//    Serial.print("Humidity = ");
-//    Serial.print(dht.readHumidity());
-//    Serial.println(" %");
-//    Serial.print("--------------------------------\n\n");
-//    
-//    Serial.print("---- GY BMP 280 ----------------\n");
-//    Serial.print("Temperature = ");
-//    Serial.print(bme.readTemperature());
-//    Serial.println(" *C");
-//    Serial.print("Pressure = ");
-//    Serial.print(bme.readPressure() / 100); // 100 Pa = 1 millibar
-//    Serial.println(" mb");
-//    Serial.print("Approx altitude = ");
-//    Serial.print(bme.readAltitude(1013.25));
-//    Serial.println(" m");
-//    Serial.print("--------------------------------\n\n");
+
     digitalWrite(VCCPin, LOW);
     delay(100);
 

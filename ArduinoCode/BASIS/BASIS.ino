@@ -40,6 +40,7 @@
 #define powerRef  3000
 #define minuteRef 60000
 #define tempSDRef 300000
+//#define tempSDRef 10000
 
 //DHT
 DHT dht(DHTPIN, DHTTYPE);
@@ -817,6 +818,14 @@ int getMaxDay(int month) {
 //            Request for live data
 //            mes: P03
 //            answer: B03 tempBuit#tempSer#tempBin#moistBuit#moistSer#moistBin#Press#LightBuit#PV#BV
+//        type2: 4
+//            Adjust dayCounter
+//            mes: P04 dayCounter(2)
+//            answer: B04 OK
+//        type2: 5
+//            Get Basis To Pi (BTP) data
+//            mes: P05
+//            answer: B05 numberLines#line0#line1# ... #linen#
 //Device: 1 (SENSOR1)
 //    type1: 0
 //        type2: 0
@@ -869,6 +878,12 @@ void handleMess(String mes) {
             case '3':
               handleLiveDataRequest(mes);
               break;
+            case '4':
+              handleSetDayCounter(mes);
+              break;
+             case '5':
+              handleBTP(mes);
+              break;
           }
           break;
       }
@@ -920,8 +935,14 @@ void handleForecastAdjustment(String mes) {
   Serial1.println(answer);
 }
 
-int dayCounter = 7;
+int dayCounter;
 #define bufferSize 1000
+
+void handleSetDayCounter(String mes) {
+  dayCounter = mes.substring(0,2).toInt();
+  String answer = "B04 OK";
+  Serial1.print(answer);
+}
 
 void handleLiveDataRequest(String mes) { //B03 tempBuit#tempSer#tempBin#moistBuit#moistSer#moistBin#Press#LightBuit#LightBin#PV#BV
   String answer = "B03 ";
@@ -948,6 +969,7 @@ void handleDataRequest(String mes) { //NN,nn,nn,nn,...
   //Serial1.print(answer);
   Serial.println("geprint " + answer);
   int num = mes.substring(0,2).toInt();
+  Serial.println("Number of days: " + String(num));
   if (num == 0) {
     Serial1.println(answer);
     return;
@@ -955,6 +977,7 @@ void handleDataRequest(String mes) { //NN,nn,nn,nn,...
   Serial1.print(answer + " ");
   for (int i = 0; i < num; i++) {
     int tn = mes.substring(3+i*3,5+i*3).toInt();
+    Serial.println(String(i) + ": " + String(tn));
     transferFile("BASIS" + String(tn) + ".txt");
     transferFile("SENSOR1" + String(tn) + ".txt");
     transferFile("SENSOR2" + String(tn) + ".txt");
@@ -969,14 +992,20 @@ void handleDataRequest(String mes) { //NN,nn,nn,nn,...
 }
 
 void transferFile(String fileName) { //lengthName name lengthFile file
+  Serial.println("Transfer file: " + fileName);
   char readBuffer[bufferSize];
   if (SD.exists(fileName)) {
+    //Serial.println("File exists");
     File file = SD.open(fileName, FILE_READ);
     String fileName = file.name();
     Serial1.print(extendDigits(fileName.length(), 2));
     Serial1.print(fileName);
+    Serial.println(extendDigits(fileName.length(), 2));
+    Serial.println(fileName);
     long fileSize = file.size();
     long timesRead = long(fileSize / bufferSize);
+    Serial.println(extendDigits(fileSize, 10));
+    //Serial.println(timesRead);
     Serial1.print(extendDigits(fileSize, 10));
     for (long i = 0; i < timesRead; i++) {
       file.read(readBuffer, bufferSize);
@@ -997,15 +1026,26 @@ String extendDigits(long value, int numberDigits) {
   return result;
 }
 
-void handleSENSOR1Values(String mes) { //LLLL,TT.TT,VV.VV,TT.TT,DDDD.DDDD,P.PP,B.BB
-  lightOut = mes.substring(0,4).toInt();
-  float tempOut1 = mes.substring(5,10).toFloat();
-  humOut = mes.substring(11,16).toFloat();
-  float tempOut2 = mes.substring(17,22).toFloat();
+void handleSENSOR1Values(String mes) { //LLLL#TT.TT#VV.VV#TT.TT#DDDD.DDDD#P.PP#B.BB
+  String parts[7];
+  int startI = 0;
+  int partI = 0;
+  for (int i = 0; i < mes.length(); i++) {
+    if (mes.charAt(i) == '#') {
+      parts[partI] = mes.substring(startI,i);
+      partI ++;
+      startI = i+1;
+    }
+  }
+  parts[6] = mes.substring(startI,mes.length());
+  lightOut = parts[0].toInt();
+  float tempOut1 = parts[1].toFloat();
+  humOut = parts[2].toFloat();
+  float tempOut2 = parts[3].toFloat();
   tempOut = (tempOut1 + tempOut2) / 2;
-  pressure = mes.substring(23,32).toFloat();
-  panelVoltage = mes.substring(33,37).toFloat();
-  battVoltage = mes.substring(38,42).toFloat();
+  pressure = parts[4].toFloat();
+  panelVoltage = parts[5].toFloat();
+  battVoltage = parts[6].toFloat();
   String data = String(lightOut) + "," + String(humOut) + "," + String(tempOut) + "," + String(pressure) + "," + String(panelVoltage) + "," + String(battVoltage);
   writeToSD("SENSOR1", data);
   handleLastUpdate(1);
@@ -1165,6 +1205,12 @@ void handleDayIndex(void) {
   else {
     dayCounter ++;
   }
+  SD.remove("settings/DAYCOUNT.TXT");
+  File dataFile = SD.open("settings/DAYCOUNT.TXT", FILE_WRITE);
+  if (dataFile) {
+    dataFile.println(extendDigits(dayCounter, 2));
+    dataFile.close();
+  }
   SD.remove("BASIS" + String(dayCounter) + ".txt");
   SD.remove("SENSOR1" + String(dayCounter) + ".txt");
   SD.remove("SENSOR2" + String(dayCounter) + ".txt");
@@ -1184,6 +1230,95 @@ unsigned long servDead = tim + servRef;
 unsigned long powerDead = tim + powerRef;
 unsigned long minuteDead = tim + minuteRef;
 unsigned long tempSDDead = tim + tempSDRef;
+
+//void printDirectory(File dir, int numTabs) {
+//   while(true) {
+//
+//     File entry =  dir.openNextFile();
+//     if (! entry) {
+//       // no more files
+//       Serial.println("**nomorefiles**");
+//       break;
+//     }
+//     for (uint8_t i=0; i<numTabs; i++) {
+//       Serial.print('\t');
+//     }
+//     Serial.print(entry.name());
+//     if (entry.isDirectory()) {
+//       Serial.println("/");
+//       printDirectory(entry, numTabs+1);
+//     } else {
+//       // files have sizes, directories do not
+//       Serial.print("\t\t");
+//       Serial.println(entry.size(), DEC);
+//     }
+//   }
+//}
+
+//Basis data to Pi (BTP):
+#define BTPDataSize 10
+
+String BTPData[BTPDataSize];
+int BTPIndex = 0;
+bool BTPFull = false;
+
+void updateBTPData(String newLine) {
+  String timeLine = " ";
+  if (String(hour).length() < 2) {
+    timeLine += "0";
+  }
+  timeLine += String(hour) + ":";
+  if (String(minute).length() < 2) {
+    timeLine += "0";
+  }
+  timeLine += String(minute) + ":";
+  String sec = String(int((millis() - millisLastMinute)/1000));
+  if (sec.length() < 2) {
+    timeLine += "0";
+  }
+  timeLine += sec  + " ";
+  if (String(day).length() < 2) {
+    timeLine += "0";
+  }
+  timeLine += String(day) + "/";
+  if (String(month).length() < 2) {
+    timeLine += "0";
+  }
+  timeLine += String(month) + "/";
+  if (String(year).length() < 2) {
+    timeLine += "0";
+  }
+  timeLine += String(year);
+  BTPData[BTPIndex] = newLine + timeLine;
+  BTPIndex ++;
+  if (BTPIndex >= BTPDataSize) {
+    BTPIndex = 0;
+    BTPFull = true;
+  }
+}
+
+//B05 numberLines#line0#line1# ... #linen#
+void handleBTP(String mes) {
+  int numberLines = BTPIndex;
+  if (BTPFull) {
+    numberLines = BTPDataSize;
+  }
+  String answer = "B05 " + String(numberLines) + "#";
+  int lineCnt = BTPIndex - 1;
+  if (lineCnt < 0) {
+    lineCnt = BTPDataSize - 1;
+  }
+  for (int i = 0; i < numberLines; i++) {
+    answer = answer + BTPData[lineCnt] + "#";
+    lineCnt --;
+    if (lineCnt < 0) {
+      lineCnt = BTPDataSize - 1;
+    }
+  }
+  Serial1.println(answer);
+  BTPIndex = 0;
+  BTPFull = false;
+}
 
 void setup() {
   Serial.begin(9600);
@@ -1224,6 +1359,19 @@ void setup() {
   tft.setTextSize(2);
   tft.print(mess);
   //Touchscreen
+  
+  //Initialize dayCounter
+  char readBuffer[2];
+  if (SD.exists("settings/DAYCOUNT.TXT")) {
+    File file = SD.open("settings/DAYCOUNT.TXT", FILE_READ);
+    file.read(readBuffer, 2);
+    dayCounter = ((int) readBuffer[0] - 48)*10 + (int) readBuffer[1] - 48;
+    Serial.println("dayCounter initialized: " + String(dayCounter));
+  }
+  else {
+    Serial.println("Does not find DAYCOUNT.TXT");
+    dayCounter = 0;
+  }
 }
 
 
@@ -1556,29 +1704,6 @@ void loop() {
       Serial.println("Failed to read from DHT sensor!");
       return;
     }
-//    String data = String(tempIn) + "," + String(humIn) + ",";
-//    if (String(lightIn).length() < 2) {
-//      data += "0";
-//    }
-//    if (String(lightIn).length() < 3) {
-//      data += "0";
-//    }
-//    if (String(lightIn).length() < 4) {
-//      data += "0";
-//    }
-//    data += String(lightIn);
-//    writeToSD("BASIS", data);
-//    Serial.print("Humidity: ");
-//    Serial.print(humIn);
-//    Serial.print(" %\t");
-//    Serial.print("Temperature: ");
-//    Serial.print(tempIn);
-//    Serial.println(" *C ");
-//    Serial.print("Light: ");
-//    Serial.print(lightIn);
-//    Serial.print(" %\t");
-//    Serial.print("LCD: ");
-//    Serial.println(lcdPower);
 
     if ((activeMenu == 0) & (~lcdRestart)) {
       tft.setTextSize(2);
@@ -1618,6 +1743,7 @@ void loop() {
     }
     data += String(lightIn);
     writeToSD("BASIS", data);
+    updateBTPData(data);
     tempSDDead = tempSDDead + tempSDRef;
   }
   if (millis() > servDead) {
