@@ -36,7 +36,7 @@
 //Timer
 #define touchRef  100
 #define tempRef   10000
-#define servRef   1000
+#define servRef   66
 #define powerRef  3000
 #define minuteRef 60000
 #define tempSDRef 300000
@@ -834,7 +834,13 @@ int getMaxDay(int month) {
 //    type1: 0
 //        type2: 0
 //            Sensor values, answer = refresh rate
-void handleMess(String mes) {
+//Device: S (SingleMessage)
+//    type1: 0
+//        type2: 0
+//            Single message containing messages of type: P00, P02, P05, 100, 200
+//            mes: S00 numberMess@mess0@ ... @messn@
+//            answer: B00 numberAnswer@answer0@ ... @answern@
+String handleMess(String mes, bool sendBack) {
   Serial.println("KOMT HIER");
   Serial.println(mes);
   char device = mes.charAt(0);
@@ -858,12 +864,13 @@ void handleMess(String mes) {
       Serial.println("Heeft PC");
       switch (type1) {
         case '0':
-        Serial.println("heeft 0");
           switch (type2) {
             case '0':
               //Time adjustment
               handleTimeAdjustment(mes);
-              Serial1.println("B" + String(type1) + String(type2) + " OK");
+              if (sendBack) {
+                Serial1.println("B" + String(type1) + String(type2) + " OK");
+              }
               break;
             case '1':
               //Request for data
@@ -872,8 +879,11 @@ void handleMess(String mes) {
               break;
             case '2':
               //Forecast adjustment
-              Serial.println("yup");
-              handleForecastAdjustment(mes);
+              Serial.println("Forecast!");
+              Serial.println(mes);
+              Serial.println(mes.length());
+              Serial.println(mes.charAt(0));
+              handleForecastAdjustment(mes, sendBack);
               break;
             case '3':
               handleLiveDataRequest(mes);
@@ -881,9 +891,8 @@ void handleMess(String mes) {
             case '4':
               handleSetDayCounter(mes);
               break;
-             case '5':
-              handleBTP(mes);
-              break;
+            case '5':
+              return handleBTP(mes, sendBack);
           }
           break;
       }
@@ -895,8 +904,11 @@ void handleMess(String mes) {
             case '0':
               //Sensor values
               handleSENSOR1Values(mes);
-              Serial1.println("B" + String(type1) + String(type2) + " " + String(SENSOR1RefreshRate));
-              break;
+              String answer = "B" + String(type1) + String(type2) + " " + String(SENSOR1RefreshRate);
+              if (sendBack) {
+                Serial1.println(answer);
+              }
+              return answer;
           }
           break;
       }
@@ -908,21 +920,78 @@ void handleMess(String mes) {
             case '0':
               //Sensor values
               handleSENSOR2Values(mes);
-              Serial1.println("B" + String(type1) + String(type2) + " " + String(SENSOR2RefreshRate));
-              break;
+              String answer = "B" + String(type1) + String(type2) + " " + String(SENSOR2RefreshRate);
+              if (sendBack) {
+                Serial1.println(answer);
+              }
+              return answer;
+          }
+          break;
+      }
+      break;
+     case 'S':
+      switch (type1) {
+        case '0':
+          switch (type2) {
+            case '0':
+              //Single message
+              return handleSingleMessage(mes, sendBack);
           }
           break;
       }
       break;
   }
+  return "";
+}
+
+String handleSingleMessage(String mes, bool sendBack) {
+  Serial.println("Received single message: " + mes);
+  int number;
+  for (int i = 0; i < mes.length(); i++) {
+    if (mes.charAt(i) == '@') {
+      number = mes.substring(0,i).toInt();
+      mes = mes.substring(i+1);
+      break;
+    }
+  }
+  String parts[number];
+  int startI = 0;
+  int partI = 0;
+  for (int i = 0; i < mes.length(); i++) {
+    if (mes.charAt(i) == '@') {
+      parts[partI] = mes.substring(startI,i);
+      partI ++;
+      startI = i+1;
+    }
+  }
+  String answer = "";
+  int numberAnswers = 0;
+  for (int i = 0; i < number; i++) {
+    Serial.println("Handle part: " + parts[i]);
+    String answerPart = handleMess(parts[i], false);
+    if (answerPart.length() > 0) {
+      numberAnswers ++;
+      answer = answer + answerPart + "@";
+    }
+  }
+  answer = "B00 " + String(numberAnswers) + "@" + answer;
+  Serial.println("Single message answer: " + answer);
+  if (sendBack) {
+    Serial1.println(answer);
+    return "";
+  }
+  return answer;
 }
 
 //            mes: P02 numberDays(2),{day1},{day2},...,{dayn}
 //            day structure: tempMorn*10(3),tempDay*10(3),tempEve*10(3),tempNight*10(3),tempMax*10(3),tempMin*10(3),icon(3),
 //                           descriptionLength(2),description(descriptionLength),humidity*10(4),pressure*100(6),clouds*10(4),
 //                           speed*100(4),deg(3),rain*100(4)
-void handleForecastAdjustment(String mes) {
+void handleForecastAdjustment(String mes, bool sendBack) {
+  Serial.println("Start handling forecast: " + mes);
+  Serial.println("SendBack: " + String(sendBack));
   int numberDays = mes.substring(0,2).toInt();
+  Serial.println("Forecast days: " + String(numberDays));
   mes = mes.substring(3);
   for (int i = 0; i < numberDays; i++) {
     tempMorn[i] = (float) (mes.substring(1,4).toInt()/10.0);
@@ -932,7 +1001,10 @@ void handleForecastAdjustment(String mes) {
     tempNight[i] = (float) (mes.substring(13,16).toInt()/10.0);
   }
   String answer = "B02 OK";
-  Serial1.println(answer);
+  if (sendBack) {
+    Serial1.println(answer);
+  }
+  Serial.println("End forecast");
 }
 
 int dayCounter;
@@ -1298,7 +1370,7 @@ void updateBTPData(String newLine) {
 }
 
 //B05 numberLines#line0#line1# ... #linen#
-void handleBTP(String mes) {
+String handleBTP(String mes, bool sendBack) {
   int numberLines = BTPIndex;
   if (BTPFull) {
     numberLines = BTPDataSize;
@@ -1315,9 +1387,12 @@ void handleBTP(String mes) {
       lineCnt = BTPDataSize - 1;
     }
   }
-  Serial1.println(answer);
+  if (sendBack) {
+    Serial1.println(answer);
+  }
   BTPIndex = 0;
   BTPFull = false;
+  return answer;
 }
 
 void setup() {
@@ -1753,7 +1828,7 @@ void loop() {
       Serial.println("hier gekomen");
       mess = Serial1.readStringUntil('\r');
       Serial.println(mess);
-      handleMess(mess);
+      handleMess(mess, true);
       //Serial.print("Ontvangen: "); Serial.println(mess);
       //Serial1.print("jaja dat gaat goed");
     }

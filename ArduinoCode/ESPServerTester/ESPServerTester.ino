@@ -88,7 +88,6 @@ void setup() {
 
 void loop() {
 
-  #ifdef PROTOCOL_TCP
   if(!client.connected()) { // if client not connected
     client = server.available(); // wait for it to connect
     return;
@@ -98,10 +97,18 @@ void loop() {
 
   if(client.available()) {
     while(client.available()) {
-      buf1[i1] = (uint8_t)client.read(); // read char from client (RoboRemo app)
-      if(i1<bufferSize-1) i1++;
+      uint8_t recv = (uint8_t) client.read();
+      buf1[i1] = recv;
+      yield();
+      if(i1 == bufferSize-1) {
+        Serial.write(buf1, bufferSize);
+        i1 = 0;
+      }
+      else {
+        i1 ++;
+      }
     }
-    // now send to UART:
+    // now send rest to UART:
     Serial.write(buf1, i1);
     i1 = 0;
   }
@@ -112,7 +119,7 @@ void loop() {
     
     while(1) {
       if(Serial.available()) {
-        buf2[i2] = (char)Serial.read(); // read char from UART
+        buf2[i2] = (char) Serial.read(); // read char from UART
         if(i2<bufferSize-1) {
           i2++;
         }
@@ -142,5 +149,4 @@ void loop() {
     i2 = 0;
     client.stop();
   }
-  #endif
 }
