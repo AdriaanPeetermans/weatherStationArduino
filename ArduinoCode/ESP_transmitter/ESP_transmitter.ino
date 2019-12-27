@@ -2,7 +2,7 @@
 
 const char* ssid     = "WiFi-P2";      // SSID
 const char* password = "Minoutje0987";      // Password
-const char* host = "192.168.1.15";  // IP serveur - Server IP
+const char* host = "192.168.1.63";  // IP serveur - Server IP
 const int   port = 9876;            // Port serveur - Server Port
 
 void setup() {

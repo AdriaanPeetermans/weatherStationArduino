@@ -119,6 +119,8 @@ bool automaticClock = true;
 int xDateButtons[4] = {250, 282, 325, 370};
 int infoPage = 1;
 
+int dayCounter;
+
 int getTouchedObject(int x, int y) {
   Serial.print(x);
   Serial.print(" ");
@@ -442,6 +444,91 @@ void drawGraph(void) {
   tft.fillRect(442,5,38,40,WHITE);
   drawArrowButton(false,442,5);
   tft.drawLine(0,50,480,50,BLACK);
+
+  //Draw graph ordinates:
+  tft.drawLine(60,55,60,250,BLACK);
+  tft.drawLine(60,250,475,250,BLACK);
+  
+  //Draw graph content:
+  drawGraphContent();
+}
+
+void drawGraphContent() {
+  String fileName;
+  if ((graphIndex == 0) | (graphIndex == 3) | (graphIndex == 6)) {
+    fileName = "BASIS" + String(dayCounter-1) + ".txt";
+  }
+  else {
+    if ((graphIndex == 1) | (graphIndex == 4) | (graphIndex >= 7)) {
+      fileName = "SENSOR1" + String(dayCounter) + ".txt";
+    }
+    else {
+      fileName = "SENSOR2" + String(dayCounter) + ".txt";
+    }
+  }
+  if (SD.exists(fileName)) {
+    char readBuffer[100];
+    File file = SD.open(fileName, FILE_READ);
+    int index = 0;
+    unsigned char graphBufferY[288];
+    unsigned short graphBufferX[288];
+    int pointIndex = 0;
+    unsigned char minY = 255;
+    unsigned char maxY = 0;
+    int next = file.read();
+    while (next != -1) {
+      char nextChar = (char) next;
+      if (nextChar == '\n') {
+        readBuffer[index] = '\0';
+        index = 0;
+        switch (graphIndex) {
+          case 0: //Temp In
+            float y = ((String) readBuffer).substring(0,5).toFloat();
+            unsigned char pointY = char((y-0)/45.0*256);
+            graphBufferY[pointIndex] = pointY;
+            if (pointY < minY) {
+              minY = pointY;
+            }
+            if (pointY > maxY) {
+              maxY = pointY;
+            }
+            String timeS = ((String) readBuffer).substring(17,25);
+            int hour = timeS.substring(0,2).toInt();
+            int minute = timeS.substring(3,5).toInt();
+            int second = timeS.substring(6,8).toInt();
+            graphBufferX[pointIndex] = short(hour*12.0+(minute*60+second)/300.0);
+            break;
+        }
+        pointIndex ++;
+      }
+      else {
+        readBuffer[index] = nextChar;
+        index += 1;
+      }
+      next = file.read();
+    }
+    for (int i = 0; i < pointIndex; i++) {
+      int xi = (int) (60+(graphBufferX[i]/288.0)*415.0);
+      int yi = (int) (250-((float(graphBufferY[i])-float(minY))*1.0/(float(maxY)-float(minY)+1)*195.0));
+      tft.drawLine(xi-1,yi-1,xi+1,yi+1,COL);
+      tft.drawLine(xi-1,yi+1,xi+1,yi-1,COL);
+    }
+    tft.setTextSize(2);
+    tft.setTextColor(BLACK,WHITE);
+    for (int i = 0; i < 5; i++) {
+      float yi = (float(maxY)-float(maxY-minY)/4.0*i)*45.0/256.0+0;
+      String txt = String(yi).substring(0,4);
+      tft.setCursor(5,55+i*47);
+      tft.print(txt);
+      tft.drawLine(56,55+int(i*48.75+0.5),60,55+int(i*48.75+0.5),BLACK);
+    }
+    for (int i = 0; i < 7; i++) {
+      String txt = String(i*4);
+      tft.setCursor(60+66*i,260);
+      tft.print(txt);
+      tft.drawLine(60+int(i*69.17+0.5),254,60+int(i*69.17+0.5),250,BLACK);
+    }
+  }
 }
 
 void drawSun(int x, int y) { //40x40
@@ -1007,7 +1094,6 @@ void handleForecastAdjustment(String mes, bool sendBack) {
   Serial.println("End forecast");
 }
 
-int dayCounter;
 #define bufferSize 1000
 
 void handleSetDayCounter(String mes) {
