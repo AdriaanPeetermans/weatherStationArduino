@@ -456,7 +456,7 @@ void drawGraph(void) {
 void drawGraphContent() {
   String fileName;
   if ((graphIndex == 0) | (graphIndex == 3) | (graphIndex == 6)) {
-    fileName = "BASIS" + String(dayCounter-1) + ".txt";
+    fileName = "BASIS" + String(dayCounter) + ".txt";
   }
   else {
     if ((graphIndex == 1) | (graphIndex == 4) | (graphIndex >= 7)) {
@@ -470,36 +470,170 @@ void drawGraphContent() {
     char readBuffer[100];
     File file = SD.open(fileName, FILE_READ);
     int index = 0;
-    unsigned char graphBufferY[288];
+    unsigned short graphBufferY[288];
     unsigned short graphBufferX[288];
     int pointIndex = 0;
-    unsigned char minY = 255;
-    unsigned char maxY = 0;
+    unsigned short minY = 65535;
+    unsigned short maxY = 0;
     int next = file.read();
+    Serial.println("Read SENSOR1:");
     while (next != -1) {
       char nextChar = (char) next;
       if (nextChar == '\n') {
         readBuffer[index] = '\0';
-        index = 0;
+        
+        unsigned short pointY;
+        float y;
+        int commaCound = 0;
+        int prevStart = 0;
         switch (graphIndex) {
           case 0: //Temp In
-            float y = ((String) readBuffer).substring(0,5).toFloat();
-            unsigned char pointY = char((y-0)/45.0*256);
-            graphBufferY[pointIndex] = pointY;
-            if (pointY < minY) {
-              minY = pointY;
+            y = ((String) readBuffer).substring(0,5).toFloat();
+            pointY = short((y-0)/45.0*65536);
+            break;
+          case 1: //Temp Uit
+            for (int i = 0; i < index; i++) {
+              if (readBuffer[i] == ',') {
+                if (commaCound == 1) {
+                  prevStart = i+1;
+                }
+                if (commaCound == 2) {
+                  y = ((String) readBuffer).substring(prevStart,i).toFloat();
+                  Serial.println(y);
+                  break;
+                }
+                commaCound ++;
+              }
             }
-            if (pointY > maxY) {
-              maxY = pointY;
+            pointY = short((y+30.0)/80.0*65536);
+            break;
+          case 2: //Temp Ser
+            break;
+          case 3: //Vocht In
+            y = ((String) readBuffer).substring(6,11).toFloat();
+            pointY = short((y-0)/100.0*65536);
+            break;
+          case 4: //Vocht Uit
+            for (int i = 0; i < index; i++) {
+              if (readBuffer[i] == ',') {
+                if (commaCound == 0) {
+                  prevStart = i+1;
+                }
+                if (commaCound == 1) {
+                  y = ((String) readBuffer).substring(prevStart,i).toFloat();
+                  break;
+                }
+                commaCound ++;
+              }
             }
-            String timeS = ((String) readBuffer).substring(17,25);
-            int hour = timeS.substring(0,2).toInt();
-            int minute = timeS.substring(3,5).toInt();
-            int second = timeS.substring(6,8).toInt();
-            graphBufferX[pointIndex] = short(hour*12.0+(minute*60+second)/300.0);
+            pointY = short((y+0.0)/100.0*65536);
+            break;
+          case 5: //Vocht ser
+            break;
+          case 6: //Licht In
+            y = ((String) readBuffer).substring(12,16).toFloat();
+            pointY = short(y);
+            break;
+          case 7: //Licht Uit
+            for (int i = 0; i < index; i++) {
+              if (readBuffer[i] == ',') {
+                y = ((String) readBuffer).substring(0,i).toFloat();
+                break;
+              }
+            }
+            pointY = short(y);
+            break;
+          case 8: //Luchtdruk
+            for (int i = 0; i < index; i++) {
+              if (readBuffer[i] == ',') {
+                if (commaCound == 2) {
+                  prevStart = i+1;
+                }
+                if (commaCound == 3) {
+                  y = ((String) readBuffer).substring(prevStart,i).toFloat();
+                  break;
+                }
+                commaCound ++;
+              }
+            }
+            pointY = short((y-900.0)/200.0*65536);
+            break;
+          case 9: //PaneelVol
+            for (int i = 0; i < index; i++) {
+              if (readBuffer[i] == ',') {
+                if (commaCound == 3) {
+                  prevStart = i+1;
+                }
+                if (commaCound == 4) {
+                  y = ((String) readBuffer).substring(prevStart,i).toFloat();
+                  break;
+                }
+                commaCound ++;
+              }
+            }
+            pointY = short(y/10.0*65536);
+            break;
+          case 10:  //BattVol
+            for (int i = 0; i < index; i++) {
+              if (readBuffer[i] == ',') {
+                if (commaCound == 4) {
+                  prevStart = i+1;
+                }
+                commaCound ++;
+              }
+              if (readBuffer[i] == ' ') {
+                y = ((String) readBuffer).substring(prevStart,i).toFloat();
+                break;
+              }
+            }
+            pointY = short(y/10.0*65536);
             break;
         }
+        graphBufferY[pointIndex] = pointY;
+        if (pointY < minY) {
+          minY = pointY;
+        }
+        if (pointY > maxY) {
+          maxY = pointY;
+        }
+        String timeS;
+        int spaceCound = 0;
+//        int prevStart = 0;
+        switch (graphIndex) {
+          case 0:
+          case 3:
+          case 6: //BASIS
+            timeS = ((String) readBuffer).substring(17,25);
+            break;
+          case 1:
+          case 4:
+          case 7:
+          case 8:
+          case 9:
+          case 10:  //SENSOR1 
+            for (int i = 0; i < index; i++) {
+              if (readBuffer[i] == ' ') {
+                if (spaceCound == 0) {
+                  prevStart = i+1;
+                }
+                if (spaceCound == 1) {
+                  timeS = ((String) readBuffer).substring(prevStart,i);
+                  break;
+                }
+                spaceCound ++;
+              }
+            }
+            break;
+          case 2:
+          case 5: //SENSOR2
+            break;
+        }
+        int hour = timeS.substring(0,2).toInt();
+        int minute = timeS.substring(3,5).toInt();
+        int second = timeS.substring(6,8).toInt();
+        graphBufferX[pointIndex] = short(hour*12.0+(minute*60+second)/300.0);
         pointIndex ++;
+        index = 0;
       }
       else {
         readBuffer[index] = nextChar;
@@ -507,6 +641,7 @@ void drawGraphContent() {
       }
       next = file.read();
     }
+    Serial.println("minMax: " + String(maxY) + " " + String(minY));
     for (int i = 0; i < pointIndex; i++) {
       int xi = (int) (60+(graphBufferX[i]/288.0)*415.0);
       int yi = (int) (250-((float(graphBufferY[i])-float(minY))*1.0/(float(maxY)-float(minY)+1)*195.0));
@@ -516,7 +651,34 @@ void drawGraphContent() {
     tft.setTextSize(2);
     tft.setTextColor(BLACK,WHITE);
     for (int i = 0; i < 5; i++) {
-      float yi = (float(maxY)-float(maxY-minY)/4.0*i)*45.0/256.0+0;
+      float yi;
+      switch (graphIndex) {
+        case 0:
+          yi = (float(maxY)-float(maxY-minY)/4.0*i)*45.0/65536.0+0;
+          break;
+        case 1:
+          yi = (float(maxY)-float(maxY-minY)/4.0*i)*80.0/65536.0-30.0;
+          break;
+        case 2: //Temp Ser
+          break;
+        case 3:
+        case 4:
+          yi = (float(maxY)-float(maxY-minY)/4.0*i)*100.0/65536.0-0.0;
+          break;
+        case 5: //Vocht Ser
+          break;
+        case 6:
+        case 7:
+          yi = (float(maxY)-float(maxY-minY)/4.0*i);
+          break;
+        case 8:
+          yi = (float(maxY)-float(maxY-minY)/4.0*i)*200.0/65536.0+900.0;
+          break;
+        case 9:
+        case 10:
+          yi = (float(maxY)-float(maxY-minY)/4.0*i)*10.0/65536.0;
+          break;
+      }
       String txt = String(yi).substring(0,4);
       tft.setCursor(5,55+i*47);
       tft.print(txt);
