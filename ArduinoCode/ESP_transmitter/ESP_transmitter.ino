@@ -2,13 +2,14 @@
 
 const char* ssid     = "WiFi-P2";      // SSID
 const char* password = "Minoutje0987";      // Password
-const char* host = "192.168.1.63";  // IP serveur - Server IP
+const char* host = "192.168.1.59";  // IP serveur - Server IP
 const int   port = 9876;            // Port serveur - Server Port
 
 void setup() {
   // Initialize serial.
   Serial.begin(4800);
   Serial.setTimeout(5000);
+  delay(1000);
 
   // Connect to WiFi.
   WiFi.begin(ssid, password);
