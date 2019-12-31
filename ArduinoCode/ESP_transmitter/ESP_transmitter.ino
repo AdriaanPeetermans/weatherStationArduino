@@ -9,7 +9,6 @@ void setup() {
   // Initialize serial.
   Serial.begin(4800);
   Serial.setTimeout(5000);
-  delay(1000);
 
   // Connect to WiFi.
   WiFi.begin(ssid, password);
