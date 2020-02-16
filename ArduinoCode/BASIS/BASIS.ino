@@ -42,6 +42,9 @@
 #define tempSDRef 300000
 //#define tempSDRef 10000
 
+//Max server listen time (miliseconds):
+#define MAXSERVERLISTEN 10000
+
 //DHT
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -1516,6 +1519,10 @@ void writeToSD(String fileName, String line) {
     }
 }
 
+void logSD(String line) {
+  writeToSD("LOG", line);
+}
+
 int maxDayCounter = 10;
 
 void handleDayIndex(void) {
@@ -1646,6 +1653,7 @@ String handleBTP(String mes, bool sendBack) {
 void setup() {
   Serial.begin(9600);
   Serial1.begin(9600);
+  Serial1.setTimeout(1000);
 
   //DHT
   dht.begin();
@@ -2072,11 +2080,16 @@ void loop() {
   if (millis() > servDead) {
     //Handle server
     //Check if incomming message
+    long startLoop = millis();
     while (Serial1.available() > 0) {
       Serial.println("hier gekomen");
       mess = Serial1.readStringUntil('\r');
       Serial.println(mess);
       handleMess(mess, true);
+      if (millis() - startLoop > MAXSERVERLISTEN) {
+        logSD("Server timeout");
+        break;
+      }
       //Serial.print("Ontvangen: "); Serial.println(mess);
       //Serial1.print("jaja dat gaat goed");
     }
